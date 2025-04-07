@@ -7,11 +7,12 @@ from ultralytics import YOLO
 import os
 import sys
 
-# ======== Load the YOLO model =========
-model = YOLO(r"C:\Users\TEJASHWINI S\Documents\Projects\Infosys SpringBoard Internship\ORS\best.pt")
+# ======== Load the YOLO models =========
+detection_model = YOLO(r"C:\Users\TEJASHWINI S\Documents\Projects\Infosys SpringBoard Internship\ORS\models\best.pt")
+segmentation_model = YOLO(r"C:\Users\TEJASHWINI S\Documents\Projects\Infosys SpringBoard Internship\ORS\models\yolo11n-seg.pt")
 
 # ======== Page Configuration =========
-st.set_page_config(page_title="YOLO Object Detection", layout="wide")
+st.set_page_config(page_title="YOLO Object Detection & Segmentation", layout="wide")
 
 # ======== Sidebar Configuration =========
 with st.sidebar:
@@ -19,6 +20,7 @@ with st.sidebar:
     st.markdown("---")
     confidence_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
     mode = st.selectbox("Select Mode", ["Image", "Video", "Webcam"])
+    task = st.selectbox("Select Task", ["Detection", "Segmentation"])
     st.markdown("---")
     
     # Close Application Button
@@ -28,17 +30,20 @@ with st.sidebar:
         os._exit(0)
 
 # ======== Main Title =========
-st.title("🎯 YOLO Object Detection with Streamlit")
+st.title("🎯 YOLO Object Detection & Segmentation with Streamlit")
+
+# Select the model based on task
+def get_model():
+    return detection_model if task == "Detection" else segmentation_model
 
 # ======== Image Mode =========
 if mode == "Image":
-    st.header("🖼️ Image Detection")
+    st.header("🖼️ Image Processing")
     uploaded_image = st.file_uploader("📤 Upload an Image", type=["jpg", "jpeg", "png"])
 
     if uploaded_image is not None:
         st.info("✅ Image Uploaded Successfully!")
 
-        # Convert the uploaded image to a NumPy array
         file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -47,23 +52,21 @@ if mode == "Image":
         with col1:
             st.image(image, channels="BGR", caption="Original Image", use_container_width=True)
 
-        # Run YOLO detection on the image
-        with st.spinner("🔎 Running YOLO Detection..."):
-            results = model.predict(source=image, conf=confidence_threshold, show=False)
+        with st.spinner(f"🔎 Running YOLO {task}..."):
+            results = get_model().predict(source=image, conf=confidence_threshold, show=False)
             annotated_image = results[0].plot()
 
         with col2:
-            st.image(annotated_image, channels="BGR", caption="Detection Result", use_container_width=True)
+            st.image(annotated_image, channels="BGR", caption=f"{task} Result", use_container_width=True)
 
 # ======== Video Mode =========
 elif mode == "Video":
-    st.header("🎬 Video Detection")
+    st.header("🎬 Video Processing")
     uploaded_video = st.file_uploader("📥 Upload a Video", type=["mp4", "mov", "avi"])
 
     if uploaded_video is not None:
         st.info("✅ Video Uploaded Successfully!")
 
-        # Save the uploaded video to a temporary file
         tfile = tempfile.NamedTemporaryFile(delete=False)
         tfile.write(uploaded_video.read())
 
@@ -73,15 +76,14 @@ elif mode == "Video":
         progress_bar = st.progress(0)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        with st.spinner("🔎 Processing Video..."):
+        with st.spinner(f"🔎 Running YOLO {task}..."):
             frame_num = 0
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
                 
-                # Run YOLO detection on the current frame
-                results = model.predict(source=frame, conf=confidence_threshold, show=False)
+                results = get_model().predict(source=frame, conf=confidence_threshold, show=False)
                 annotated_frame = results[0].plot()
 
                 stframe.image(annotated_frame, channels="BGR", use_container_width=True)
@@ -96,15 +98,13 @@ elif mode == "Video":
 
 # ======== Webcam Mode =========
 elif mode == "Webcam":
-    st.header("📹 Webcam Live Detection")
+    st.header("📹 Webcam Live Processing")
 
-    # Initialize webcam state
     if "run_webcam" not in st.session_state:
         st.session_state.run_webcam = False
 
     col1, col2 = st.columns(2)
 
-    # Styled Buttons
     with col1:
         start_button = st.button("▶️ Start Webcam", use_container_width=True)
     with col2:
@@ -130,8 +130,7 @@ elif mode == "Webcam":
                 st.error("❌ Failed to grab frame")
                 break
             
-            # Run YOLO detection on the current webcam frame
-            results = model.predict(source=frame, conf=confidence_threshold, show=False)
+            results = get_model().predict(source=frame, conf=confidence_threshold, show=False)
             annotated_frame = results[0].plot()
             webcam_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
             time.sleep(0.03)
